@@ -1,0 +1,577 @@
+<!--
+=========================================================
+* Paper Dashboard 2 - v2.0.1
+=========================================================
+
+* Product Page: https://www.creative-tim.com/product/paper-dashboard-2
+* Copyright 2020 Creative Tim (https://www.creative-tim.com)
+
+Coded by www.creative-tim.com
+
+ =========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="apple-touch-icon" sizes="76x76" href="./static/img/apple-icon.png">
+  <link rel="icon" type="image/ico" href="./static/img/favicon.ico">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <title>
+    Grab Dashboard
+  </title>
+  <meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no' name='viewport' />
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet" />
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
+  <!-- CSS Files -->
+  <link href="./static/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="./static/css/paper-dashboard.css?v=2.0.1" rel="stylesheet" />
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+  <style>
+    .tableRow {
+      font-family: Montserrat-Regular;
+      font-size: 14px;
+      color: #808080;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .headerRow {
+      font-family: Montserrat-Medium;
+      font-size: 12px;
+      color: #fff;
+      line-height: 1.4;
+      text-align: center;
+      text-transform: uppercase;
+      background-color: #71746c;
+    }
+
+    #chart_div tr {
+      cursor: pointer;
+    }
+  </style>
+
+  <script type="text/javascript">
+    google.charts.load('current', {'packages':['corechart','table','gauge','map'], 'mapsApiKey':'KEYHERE'});
+    google.charts.setOnLoadCallback(googlecharts_is_ready);
+
+    var chart, table;
+    var graphdata;
+    var gaugedata;
+    var tabledata;
+    var mapdata;
+  
+    function googlecharts_is_ready(){
+      gaugeChart = new google.visualization.Gauge(document.getElementById("gauge_div"));
+      getTempData();
+      getMapData();
+    }
+
+    function getTempData(){
+      jQuery.ajax({
+        url: "/api/tempapi",
+        type: 'POST',
+        data: {get_param: 'temperature_value'},
+        dataType: 'json',
+        success: function(ndata, textStatus, xhr){
+          data = ndata.chart_data
+          updateTemp(data)
+        }
+      })   
+    }
+    
+    function getNewData(){
+      var selectBox = document.getElementById("selectBox");
+      var rowsNo = selectBox.options[selectBox.selectedIndex].text;
+        jQuery.ajax({
+            url: "/api/getdata" ,
+            type: 'POST',            
+            success: function(ndata, textStatus, xhr){ 
+                chartdata = ndata.chart_data
+                chartdatalength  = parseInt(ndata.chart_data_length)
+                graphdata = createDataTableForChart(chartdata,chartdatalength)
+                tabledata = createDataTableForTable(chartdata,chartdatalength,rowsNo)
+                gaugedata = createDataTableForGauge(chartdata,chartdatalength)       
+                drawLineChart(graphdata,"chart_div")
+                drawGauge(gaugedata)
+                drawDataTable(tabledata,"table_div")
+                
+            }//end success
+        });//end ajax
+      } //end getNewData
+
+      function getMapData(){ //separate creation for mapdata is due to google quota limit
+
+        jQuery.ajax({
+            url: "/api/getdata" ,
+            type: 'POST',            
+            success: function(ndata, textStatus, xhr){ 
+              chartdata = ndata.chart_data
+              chartdatalength  = parseInt(ndata.chart_data_length)
+              mapdata = createDataTableForMap(chartdata,chartdatalength) 
+              drawMap(mapdata,"map_div")
+                
+            }//end success
+        });//end ajax
+      } //end getNewData
+
+      function createDataTableForMap(newdata,newdatalength){
+        mapdata = new google.visualization.DataTable(); 
+        mapdata.addColumn('number','Lat');
+        mapdata.addColumn('number','Long');
+        mapdata.addColumn('string','InfoWindow');
+
+        currentrow = 0
+        bookidArr = [];
+
+        for(i in newdata){
+          lat = newdata[i].latitude
+          lng = newdata[i].longitude
+          bookid = newdata[i].bookingid
+          bookid = bookid.substring(0,bookid.length-2);
+
+          infoWindow = "Booking ID: <a href='/data/"+bookid+"'>"+ bookid+"</a>";
+
+          if(!bookidArr.includes(bookid)){
+          
+            mapdata.addRows([[lat,lng,infoWindow]])
+            currentrow++
+            bookidArr.push(bookid);
+          }else{
+            index = bookidArr.indexOf(bookid)
+            mapdata.setCell(index,0,lat)
+            mapdata.setCell(index,1,lng)
+          }
+        }
+
+        mapdata.removeRows(0,currentrow-100)
+        return mapdata
+      }
+
+      function drawMap(mapdata,divname){
+        var map = new google.visualization.Map(document.getElementById(divname));
+        var options = {
+          showInfoWindow: true,
+          icons: {
+                  default: {
+                     selected: '../static/img/car-selected.png',
+                     normal: '../static/img/car.png'
+                  }
+               },
+          mapType: 'normal'	  
+        };
+        map.draw(mapdata, options);
+      }
+
+
+    function createDataTableForTable(newdata,newdatalength,rowno){
+        tabledata = new google.visualization.DataTable();       
+        tabledata.addColumn('string', 'Booking ID');
+        tabledata.addColumn('string', 'Time');
+        tabledata.addColumn('string', 'Elapsed');
+        tabledata.addColumn('number', 'Speed (km/hour)');
+        tabledata.addColumn('number', 'Latitude')
+        tabledata.addColumn('number', 'Longitude')
+                           
+        currentrow = 0
+        
+        for (i in newdata){
+              bookid = parseInt(newdata[i].bookingid)
+              speed = newdata[i].speedkmhour
+              lat = newdata[i].latitude
+              lng = newdata[i].longitude
+              seconds =  parseInt(newdata[i].seconds)
+              minutes = Math.floor(seconds/60)
+              seconds_str = minutes + " minutes " + (seconds-(minutes*60)) + " seconds"
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));                            
+              jstime = jsdatetime.toLocaleTimeString();                
+              tabledata.addRows([["<a href='/data/"+bookid+"'>"+bookid+"</a>",jstime,seconds_str,speed,lat,lng]]);
+              currentrow++
+        }
+
+        tabledata.removeRows(0,currentrow-rowno)   
+        return tabledata
+    }
+
+    function createDataTableForChart(newdata,newdatalength){
+        graphdata = new google.visualization.DataTable();       
+        graphdata.addColumn('string', 'Time');
+        currentrow = 0
+        bookidArr = [];
+        jstimeArr = [];
+        for (i in newdata){
+             
+              bookid = parseInt(newdata[i].bookingid)
+              speed = newdata[i].speedkmhour
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));                              
+              jstime = jsdatetime.toLocaleTimeString();
+
+              if(!bookidArr.includes(bookid)){  
+                graphdata.addColumn('number', " "+bookid);
+                graphdata.addColumn({type: 'number', role: 'annotation'})
+                bookidArr.push(bookid);   
+              }
+              
+              idIndex = bookidArr.indexOf(bookid);
+              idLen = bookidArr.length;
+            
+              if(jstimeArr.includes(jstime)){
+                  numrows = graphdata.getNumberOfRows()
+                  graphdata.setCell(numrows-1,(idIndex*2)+1,speed)
+                  graphdata.setCell(numrows-1,(idIndex*2)+2,speed)
+              }else{
+                speedArr = new Array((idLen*2)+1)
+                speedArr.fill(jstime,0,1);
+                speedArr.fill(speed,(idIndex*2)+1,(idIndex*2)+3);
+                graphdata.addRows([speedArr]);
+                jstimeArr.push(jstime)
+              }
+              currentrow++
+        
+        }
+        
+        graphdata.removeRows(0,currentrow-10)
+        
+        return graphdata
+    }
+
+    function createDataTableForGauge(newdata){
+      gaugedata = new google.visualization.DataTable
+      gaugedata.addColumn('number','km/hr')
+      
+      currentrow = 0
+      maxSpeed=0
+      gaugedata.addRows([[maxSpeed]]);
+      for (i in newdata){
+            
+            speed = newdata[i].speedkmhour
+            
+            if(speed>= maxSpeed){
+              bookid = parseInt(newdata[i].bookingid)
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));      
+              maxSpeed = speed
+              $('#RecBookID').html("Recorded bookingID: "+"<a href='/data/"+bookid+"'>"+bookid+"</a>");
+              $('#time').html(jsdatetime);
+              gaugedata.setCell(0,0,maxSpeed);
+            }    
+      }
+      
+      return gaugedata
+    }
+
+    function drawGauge(gaugedata){
+    
+      var options ={
+        width:300,
+        height:300,
+        redFrom:90,
+        redTo:100,
+        yellowFrom:75,
+        yellowTo:90,
+        minorTicks:5,
+        animation:{
+          duration: 1000,
+          easing: 'inAndOut',
+          startup: true
+        },
+      majorTicks : ['0','10','20','30','40','50','60','70','80','90','100']
+      }; 
+       
+      gaugeChart.draw(gaugedata,options);
+    }
+    
+    function drawDataTable(tabledata, divname){
+        table = new google.visualization.Table(document.getElementById(divname));
+        var cssClasses = {headerCell: 'headerRow', tableCell: 'tableRow'};
+        table.draw(tabledata, {showRowNumber: true, width: '100%', height: '100%','cssClassNames':cssClasses,allowHtml:true});
+
+    }//end drawTable
+
+    function drawLineChart(graphdata,divname) {
+      lineChart = new google.visualization.LineChart(document.getElementById(divname));
+        var options = {
+                          chartArea: {left:10,top:20,right:10,width:"100%",height:"100%"},
+                          interpolateNulls:true,
+                          pointSize: 10,
+                          curveType: 'function',
+                          legend: 'top', 
+                          vAxis: {textPosition: 'in',baseline:0, viewWindow: {min: 0, max:120}},
+                          hAxis: {textPosition: 'in',format: 'hh:mm:ss'},
+                      }
+          lineChart.draw(graphdata, options);
+        return 
+    } //end drawChart
+
+    $(document).ready(function(){          
+
+        setInterval(function () {
+          getNewData()
+        }, 1000);
+
+        setInterval(function (){
+          getTempData();
+        },5000);
+
+    });
+
+    function updateTemp(data){
+      
+      max = 0
+      min = data[0].temperature
+      avg = 0
+      total = 0
+      for (i in data){
+          temp = data[i].temperature
+
+          if (temp >= max){
+            max = temp
+          }
+          if ( temp <= min){
+            min = temp
+          }
+          total += data[i].temperature
+          $("#temp").html(temp + " °C")
+          $("#tempMAX").html(max)
+          $("#tempMIN").html(min)
+
+      }
+      avg = total/data.length
+      $("#tempAVG").html(avg)
+    }
+
+</script>
+
+</head>
+
+<body class="">
+  <div class="wrapper ">
+    <div class="sidebar" data-color="white" data-active-color="danger">
+      <div class="logo">
+
+        <a href="/" class="simple-text logo-normal">
+          
+          <div class="logo-image-big">
+            <img style="width: 70%;height: 70%;display:block; margin-left:auto; margin-right: auto;" src="../static/img/grab.png">
+          </div> 
+        </a>
+      </div>
+      <div class="sidebar-wrapper" style="background-image: url('../static/img/header.jpg'); ">
+        <ul class="nav">
+          <li class="active ">
+            <a href="/">
+              <i class="nc-icon nc-bank"></i>
+              <p>Dashboard</p>
+            </a>
+          </li>
+          <li>
+            <a href="/list" >
+              <i class="nc-icon nc-diamond" style="color: white;"></i>
+              <p style="color: white;">Booking List</p>
+            </a>
+          </li>
+          <li>
+            <a href="/driverlist">
+              <i class="nc-icon nc-circle-10" style="color: white;"></i>
+              <p style="color: white;">Driver List</p>
+            </a>
+          </li>
+          <li>
+            <a href="/temperature">
+              <i class="nc-icon nc-umbrella-13" style="color: white;"></i>
+              <p style="color: white;">Temperature & Humidity</p>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="main-panel" >
+      <!-- Navbar -->
+      <nav class="navbar navbar-expand-lg navbar-absolute fixed-top navbar-transparent">
+        <div class="container-fluid">
+          <div class="navbar-wrapper">
+            <div class="navbar-toggle">
+              <button type="button" class="navbar-toggler">
+                <span class="navbar-toggler-bar bar1"></span>
+                <span class="navbar-toggler-bar bar2"></span>
+                <span class="navbar-toggler-bar bar3"></span>
+              </button>
+            </div>
+            <a class="navbar-brand" href="javascript:;">Grab Dashboard</a>
+          </div>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation" aria-controls="navigation-index" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+          </button>
+
+      </nav>
+      <!-- End Navbar -->
+      
+      <div class="content">
+        <div class="row">
+          <!-- Line Chart of Speeds-->
+          <div class="col-md-8">
+            <div class="card card-chart">
+              <div class="card-header">
+                <h5 class="card-title">Speed</h5>
+                <p class="card-category">km/hr</p>
+              </div>
+              <div class="card-body"> 
+                <div class="chart-area">
+                  <div id="status"></div>
+                  <div id="chart_div"></div>
+                </div>
+              </div>
+              <div class="card-footer">
+                <hr />
+                <div class="card-stats">
+                  <i class="fa fa-check"></i> Data information certified
+                </div>
+              </div>
+            </div>
+          </div>
+          <!--End of Line Chart-->
+
+          <div class="col-md-4">
+            <div class="card ">
+              <div class="card-header ">
+                <h5 class="card-title">Temperature In Singapore</h5>
+                <p class="card-category">Updated every 5 seconds</p>
+               
+              </div>
+              
+              <div class="card-body">
+                <h1 id="temp" style="text-align: center;"></h1>
+              </div>
+
+              <div class="card-footer ">
+                <hr>
+                <p class="card-category">Last 20 records:</p>
+                <div class="stats">
+                  <i class="fa fa-circle" style="color:deepskyblue"> Lowest Recorded: 
+                    <div id="tempMIN" style="display:inline" class="min"></div> °C 
+                  </i>
+                  <br>
+                  <i class="fa fa-circle" style="color:crimson"> Highest Recorded: 
+                    <div id="tempMAX" style="display:inline" class="max"></div> °C
+                  </i>
+                 <br>
+                  <i class="fa fa-circle" style="color:rgb(20, 220, 53)"> Average Temperature: 
+                    <div id="tempAVG" style="display:inline" class="avg"></div> °C
+                  </i>
+                </div>
+              </div>
+            </div>
+          </div>  
+        </div>
+
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card ">
+              <div class="card-header ">
+                Google Maps
+              </div>
+              <div class="card-body ">
+                <div id="map_div" class="map"></div>
+                <button class="btn btn-primary btn-block" onclick="getMapData()">Refresh Map</button>
+              </div>
+            </div>
+          </div>
+          <div class="col-md-4">
+            <div class="card ">
+              <div class="card-header ">
+                <h5 class="card-title" >Highest Speed</h5>
+                <p class="card-category">Updated every seconds</p>
+                <hr>
+              </div>
+              
+              <div class="card-body">
+                <div id="gauge_div" align='center'></div>
+              </div>
+              
+              <div class="card-footer ">
+                <hr> 
+                <p class="card-stats" id="RecBookID"></p> 
+                <div class="stats">
+                  <div class="card-stats">Date and Time recorded:</div>  
+                    <div id="time" class="card-stats"></div>              
+                </div>
+              </div>
+            </div>
+          </div>  
+        </div>
+
+       
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card ">
+              <div class="card-header ">
+                <h5 class="card-title">Drivers Behavior</h5>
+               
+              </div>
+              <div class="card-body"> 
+                <div class="chart-area">
+                  <div class="input-group-text">
+                    Number of Rows:<select id="selectBox" onchange="getNewData()">
+                      <option value="10" selected="selected">10</option>
+                      <option value="20">20</option>
+                      <option value="50">50</option>
+                      <option value="100">100</option>
+                    </select>
+                  </div>
+                  <div id="table_div"></div>
+                </div>
+              </div>
+              <div class="card-footer ">
+                <hr>
+              </div>
+            </div>
+          </div>
+        </div>
+      
+      </div>
+      <br>
+      <footer class="footer" style="position: absolute; bottom: 0; width: -webkit-fill-available;">
+        <div class="container-fluid">
+          <div class="row">
+            <nav class="footer-nav">
+              <ul>
+                <li><a href="https://www.creative-tim.com" target="_blank">Creative Tim</a></li>
+                <li><a href="https://www.creative-tim.com/blog" target="_blank">Blog</a></li>
+                <li><a href="https://www.creative-tim.com/license" target="_blank">Licenses</a></li>
+              </ul>
+            </nav>
+            <div class="credits ml-auto">
+              <span class="copyright">
+                © 2020, made with <i class="fa fa-heart heart"></i> by Creative Tim
+              </span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="./static/js/core/jquery.min.js"></script>
+  <script src="./static/js/core/popper.min.js"></script>
+  <script src="./static/js/core/bootstrap.min.js"></script>
+  <script src="./static/js/plugins/perfect-scrollbar.jquery.min.js"></script>
+  <!-- Chart JS -->
+  <script src="./static/js/plugins/chartjs.min.js"></script>
+  <!--  Notifications Plugin    -->
+  <script src="./static/js/plugins/bootstrap-notify.js"></script>
+  <!-- Control Center for Now Ui Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="./static/js/paper-dashboard.min.js?v=2.0.1" type="text/javascript"></script>
+</body>
+
+</html>

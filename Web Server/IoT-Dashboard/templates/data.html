@@ -1,0 +1,895 @@
+<!--
+=========================================================
+* Paper Dashboard 2 - v2.0.1
+=========================================================
+
+* Product Page: https://www.creative-tim.com/product/paper-dashboard-2
+* Copyright 2020 Creative Tim (https://www.creative-tim.com)
+
+Coded by www.creative-tim.com
+
+ =========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="apple-touch-icon" sizes="76x76" href="../static/img/apple-icon.png">
+  <link rel="icon" type="image/ico" href="../static/img/favicon.ico">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <title>
+    Grab Dashboard
+  </title>
+  <meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no' name='viewport' />
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet" />
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
+  <!-- CSS Files -->
+  <link href="../static/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="../static/css/paper-dashboard.css?v=2.0.1" rel="stylesheet" />
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+
+  <style>
+    .tableRow {
+      font-family: Montserrat-Regular;
+      font-size: 14px;
+      color: #808080;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .headerRow {
+      font-family: Montserrat-Medium;
+      font-size: 12px;
+      color: #fff;
+      line-height: 1.4;
+      text-align: center;
+      text-transform: uppercase;
+      background-color: #71746c;
+    }
+
+    #chart_div tr {
+      cursor: pointer;
+    }
+  </style>
+  
+  <!--  Google Maps Plugin (reverse geocoder)   -->
+  <script src="https://maps.googleapis.com/maps/api/js?key=KEYHERE"></script>
+
+  <script type="text/javascript">
+    google.charts.load('current', {'packages':['corechart','table','controls','gauge','map'],'mapsApiKey':'KEYHERE'});
+    google.charts.setOnLoadCallback(googlecharts_is_ready);
+
+    var chart, table;
+    var graphdata;
+    var tabledata; 
+    var mapdata;
+    var gaugedata;
+    var averageGaugeData;
+
+    function showNotification(messageContent,from, align) {
+      color = 'primary';
+
+      $.notify({
+        icon: "nc-icon nc-bell-55",
+        message: messageContent
+      }, {
+        type: color,
+        timer: 8000,
+        placement: {
+          from: from,
+          align: align
+        }
+      });
+    }
+
+    function showAlert(messageContent,from, align) {
+      color = 'danger';
+
+      $.notify({
+        icon: "nc-icon nc-simple-remove",
+        message: messageContent
+      }, {
+        type: color,
+        timer: 8000,
+        placement: {
+          from: from,
+          align: align
+        }
+      });
+    }
+
+    function googlecharts_is_ready(){
+      gaugeChart = new google.visualization.Gauge(document.getElementById("gauge_div"));
+      avgGaugeChart = new google.visualization.Gauge(document.getElementById("avg_gauge_div"));
+      getTableData(2)
+      getLocationData()
+      
+    }
+
+    function changeFunc() {
+      var selectBox = document.getElementById("selectBox");
+      var selectedValue = selectBox.options[selectBox.selectedIndex].value;
+
+      getTableData(selectedValue)
+    }
+
+    function defaultsetting(){
+      $('#horn_button').attr("style","display:none;");
+      $('.container').attr("style","display:block;");
+      $('#image_div').attr("src","")
+      $('#imagetaken').html("");
+      $('#ItemObject').html("");
+    }
+
+    function publishHorn(){
+      jQuery.ajax({
+        url: "/api/horn",
+        type: "POST",
+        contentType: "application/json; charset=utf-8",
+        data: JSON.stringify({horn: "horn", bookingid: "{{bookid}}"}),
+        dataType: 'json',
+        success: function(ndata, status){
+          showNotification('Horn successfully','top','center')
+        },
+        error: function(){
+          showAlert('Fail to Horn','top','center')
+        },
+        timeout:10000
+      })
+    }
+
+    function getPicture(capturetype){
+      $('.container').attr("style","display:none;");
+
+      $('#image_div').attr("src","../static/img/loading.gif");
+      $('#imagetaken').html("");
+      $('#ItemObject').html("");
+     
+      jQuery.ajax({
+        url: "/api/camera",
+        type: "POST",
+        contentType: "application/json; charset=utf-8",
+        data: JSON.stringify({type: capturetype, bookingid: "{{bookid}}"}),
+        dataType: 'json',
+        success: function(ndata, status){
+
+          
+          file = ndata.file;
+          datetime = ndata.datetime;
+
+          if(capturetype == "object"){
+            $('#horn_button').attr("style","display:block;");
+            data = ndata.ItemObject;
+            ntcfmData = ndata.NotCfmObject;
+
+            NumberofItem = ndata.Item_Length;
+            NotcfmItemLength = ndata.ntcfmItem_Length;
+
+            DashCamSetImage(data,NumberofItem,file,datetime)
+          }else{
+            data = ndata.FaceObject;
+            dataLength = ndata.Face_Length
+
+            FacialSetImage(data,dataLength,file,datetime)
+          }
+        },
+        error: function(){
+          showAlert("Error, unable to connect to driver's camera",'top','center')
+        },
+        timeout:10000
+      })
+    }
+
+    function FacialSetImage(data,dataLength, file, datetime){
+      var text ="";
+
+      for (var i = 0; i < dataLength; i++){
+        text += "Facial Similarity: " + data[i].Similarity + "% <br> FaceID: "+ data[i].FaceID + "<br> External Image Id: "+ data[i].ExternalImageId; 
+      }
+      $('#image_div').attr("src","data:image/jpg;base64,"+ file);
+      $('#imagetaken').html("Image Taken on: "+datetime + "<br");
+      if (dataLength != 0){
+        $('#ItemObject').html("Face Detected: <br>" + text)
+      }else{
+        $("#ItemObject").html("No match found")
+      }
+    }
+
+    function DashCamSetImage(data,NumberofItem,file,datetime){
+      
+      var text = "";
+      
+      for (var i = 0; i < NumberofItem; i++){
+        
+            text += "Object could be "+ data[i].NumberofItem+ " " + data[i].ItemDetail.Name + " with confidence of " + data[i].ItemDetail.Confidence + "% <br> ";  
+      }
+      
+      if (NotcfmItemLength > 0){
+        text += "<br> Object that may be in the Picture: <br>"
+        for (var i = 0; i < NotcfmItemLength; i++){
+          text += "Object could be a " + ntcfmData[i].ItemDetail.Name + " with confidence of " + ntcfmData[i].ItemDetail.Confidence + "% <br> ";  
+        }
+      }
+      $('#image_div').attr("src","data:image/jpg;base64,"+ file);
+      $('#imagetaken').html("Image Taken on: "+datetime + "<br");
+      if (NumberofItem > 0){
+            $('#ItemObject').html("Detected Object: <br>" + text)
+      }else{
+            $('#ItemObject').html("No object detected")
+      }
+    }
+
+    function sendAlert(messageContent,viatype){
+      jQuery.ajax({
+        url: "/api/receiveAlert",
+        type: "POST",
+        contentType: "application/json; charset=utf-8",
+        data: JSON.stringify({message: messageContent,bookingid: "{{bookid}}",viatype: viatype}),
+        success: function(data){
+            showNotification('Message Sent Successfully','top','center')
+        }
+      })
+    }
+
+    function getTableData(columnIndex){
+      jQuery.ajax({
+        url: "/api/getsingledata/{{bookid}}",
+        type: 'POST',
+        dataType: 'json',
+        success: function(ndata, textStatus, xhr){
+          data = ndata.chart_data
+          datalength  = parseInt(ndata.chart_data_length)
+          tabledata = createDataTableForTable(data,datalength)
+          drawDataTable(tabledata,"dashboard",columnIndex)
+          
+        }
+      })   
+    }
+
+    function getGraphData(){
+      jQuery.ajax({
+        url: "/api/getsingledata/{{bookid}}",
+        type: 'POST',
+        dataType: 'json',
+        success: function(ndata, textStatus, xhr){
+          data = ndata.chart_data
+          datalength  = parseInt(ndata.chart_data_length)
+          graphdata = createDataTableForChart(data,datalength)
+          gaugedata = createDataTableForGauge(data,datalength)
+          averageGaugeData = createDataTableForAvgGauge(data,datalength)
+          drawLineChart(graphdata,"chart_div")
+          drawGauge(gaugedata)
+          drawAvgGauge(averageGaugeData)
+        }
+      })   
+    }
+
+    function getLocationData(){
+      jQuery.ajax({
+        url: "/api/getsingledata/{{bookid}}",
+        type: 'POST',
+        dataType: 'json',
+        success: function(ndata, textStatus, xhr){
+          data = ndata.chart_data
+          dataLength = data.length
+          mapdata = createDataTableForMap(data, dataLength)
+          drawMap(mapdata,"map_div")
+        }
+      })   
+    }
+
+  function createDataTableForMap(newdata,datalength){
+      mapdata = new google.visualization.DataTable(); 
+      mapdata.addColumn('number','Lat');
+      mapdata.addColumn('number','Long');
+      mapdata.addColumn('string','InfoWindow');
+
+      lat = newdata[dataLength-1].latitude
+      lng = newdata[dataLength-1].longitude
+
+      var locationFunction = reverseGeoCoding(lat,lng,function(data){
+        $("#locationName").html("Last Recorded Location: "+ data);
+        $("#locationLat").html("Latitude: " + lat);
+        $("#locationLong").html("Longitude: " + lng);
+      });
+
+      speed = newdata[datalength-1].speedkmhour
+      infoWindow = "Speed (km/hour): " + speed
+      mapdata.addRows([[lat,lng,infoWindow]])
+      
+      return mapdata
+    }
+
+    function reverseGeoCoding(lat_value,long_value,callback){
+      var geocoder = new google.maps.Geocoder();
+      var latlng = new google.maps.LatLng(lat_value,long_value)
+      geocoder.geocode({'latLng':latlng}, function (results,status){
+                if (status == google.maps.GeocoderStatus.OK){
+                  if (results[0]){
+                    callback(results[0].formatted_address); 
+                   
+                  }else{
+                    callback("Unknown");
+                  }
+                } else {
+                  callback("Couldn't find location. Error code: " +status);
+                }
+              });  
+    }
+
+    function drawMap(mapdata,divname){
+      var map = new google.visualization.Map(document.getElementById(divname));
+      var options = {
+        showInfoWindow: true,
+        icons: {
+                default: {
+                    selected: '../static/img/car-selected.png',
+                    normal: '../static/img/car.png'
+                }
+              },
+        mapType: 'normal',
+        zoomLevel:18
+      };
+      map.draw(mapdata, options);
+    }
+
+    function createDataTableForTable(newdata,newdatalength){
+        tabledata = new google.visualization.DataTable();       
+        tabledata.addColumn('datetime', 'Date and Time');
+        tabledata.addColumn('string', 'Elapsed');
+        tabledata.addColumn('number', 'Speed (km/hour)');
+        tabledata.addColumn('number', 'Latitude');
+        tabledata.addColumn('number', 'Longitude');
+        currentrow = 0
+        newdata.reverse();
+        for (i in newdata){
+              speed = newdata[i].speedkmhour
+              lat_value = newdata[i].latitude
+              long_value = newdata[i].longitude
+              seconds =  parseInt(newdata[i].seconds)
+              minutes = Math.floor(seconds/60)
+              seconds_str = minutes + " minutes " + (seconds-(minutes*60)) + " seconds"
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));              
+              jstime = jsdatetime.toLocaleTimeString();          
+
+              tabledata.addRows([[jsdatetime,seconds_str,speed,lat_value,long_value]]);
+              currentrow++
+        }
+
+        tabledata.removeRows(0,currentrow-1000)
+        
+        return tabledata
+    }
+
+    function drawDataTable(tabledata, divname,columnIndex){
+      var dashboard = new google.visualization.Dashboard(document.getElementById(divname))
+        var cssClasses = {headerCell: 'headerRow', tableCell: 'tableRow'};
+        var table = new google.visualization.ChartWrapper({
+            chartType: 'Table',
+            containerId: 'table_div',
+            options: {
+              'cssClassNames':cssClasses,
+              width: '100%',
+              height: '100%',
+              page:'enable',
+              pageSize:'10'
+            }
+        });
+
+        var control = new google.visualization.ControlWrapper({
+        controlType: 'StringFilter',
+        containerId: 'search_div',
+        matchType: 'any',
+        options:{
+          filterColumnIndex: columnIndex,
+          ui:{
+          label: ' '
+          }
+        }
+      
+      });
+      dashboard.bind([control],[table]);
+      dashboard.draw(tabledata);
+    }//end drawTable
+    
+    function createDataTableForChart(newdata,newdatalength){
+        graphdata = new google.visualization.DataTable();       
+        
+        graphdata.addColumn('string', 'Time');
+        graphdata.addColumn('number', 'Speed (km/hour)');
+        graphdata.addColumn({type: 'number', role: 'annotation'})
+        currentrow = 0
+  
+        for (i in newdata){
+              speed = newdata[i].speedkmhour
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));                              
+              jstime = jsdatetime.toLocaleTimeString();
+    
+              graphdata.addRow([jstime,speed,speed]);
+              currentrow++
+        }
+
+        graphdata.removeRows(0,currentrow-10)
+        return graphdata
+    }
+
+    function drawLineChart(graphdata,divname) {
+        lineChart = new google.visualization.LineChart(document.getElementById(divname));
+        var options = {
+                          chartArea: {left:10,top:20,right:10,width:"100%",height:"100%"},
+                          interpolateNulls:true,
+                          pointSize: 10,
+                          curveType: 'function',
+                          legend: 'top', 
+                          vAxis: {textPosition: 'in',baseline:0, viewWindow: {min: 0, max:120}},
+                          hAxis: {textPosition: 'in',format: 'hh:mm:ss'}
+                      }
+        lineChart.draw(graphdata, options);
+        return 
+    } //end drawChart
+
+    function createDataTableForGauge(newdata){
+      gaugedata = new google.visualization.DataTable
+      gaugedata.addColumn('number','km/hr')
+      
+      currentrow = 0
+      maxSpeed=0
+      gaugedata.addRows([[maxSpeed]]);
+
+      for (i in newdata){
+            speed = newdata[i].speedkmhour              
+            
+            if(speed>= maxSpeed){
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));
+              maxSpeed = speed
+              $('#time').html(jsdatetime);
+              gaugedata.setCell(0,0,maxSpeed);
+            }    
+      }   
+      return gaugedata
+    }
+
+    function createDataTableForAvgGauge(newdata,newdatalength){
+      averageGaugeData = new google.visualization.DataTable
+      averageGaugeData.addColumn('number','km/hr')
+      
+      currentrow = 0
+      total = 0
+      average = 0
+      averageGaugeData.addRows([[average]])
+      averageGaugeData.setCell(0,0,newdata[0].speedkmhour)
+      for (i in newdata){
+            speed = newdata[i].speedkmhour              
+            total += speed
+       
+            if(total >= 0 && i != 0){
+              datetime = newdata[i].datetime_value;
+              
+              jsdatetime = new Date(Date.parse(datetime));
+              average = total / ++i;
+              averageGaugeData.setCell(0,0,average)
+              $('#averageTime').html(jsdatetime);
+            }
+      }   
+      return averageGaugeData
+    }
+    
+    function drawGauge(gaugedata){
+    
+      var options ={
+        width:250,
+        height:250,
+        redFrom:90,
+        redTo:100,
+        yellowFrom:75,
+        yellowTo:90,
+        minorTicks:5,
+        animation:{
+          duration: 1000,
+          easing: 'inAndOut',
+          startup: true
+        },
+      majorTicks : ['0','10','20','30','40','50','60','70','80','90','100']
+      }; 
+       
+      gaugeChart.draw(gaugedata,options);
+    }
+
+    function drawAvgGauge(gaugedata){
+
+      var options ={
+        width:250,
+        height:250,
+        redFrom:90,
+        redTo:100,
+        yellowFrom:75,
+        yellowTo:90,
+        minorTicks:5,
+        animation:{
+          duration: 1000,
+          easing: 'inAndOut',
+          startup: true
+        },
+      majorTicks : ['0','10','20','30','40','50','60','70','80','90','100']
+      }; 
+       
+      avgGaugeChart.draw(gaugedata,options);
+    }
+    $(document).ready(function(){          
+      setInterval(function () {
+        getGraphData()
+      }, 1000);
+
+    });
+  </script>
+</head>
+
+<body class="">
+  <div class="wrapper ">
+    <div class="sidebar" data-color="white" data-active-color="danger">
+      <div class="logo">
+ 
+        <a href="/" class="simple-text logo-normal">
+          
+          <img style="width: 70%;height: 70%;display:block; margin-left:auto; margin-right: auto;" src="../static/img/grab.png">
+        </a>
+      </div>
+      <div class="sidebar-wrapper" style="background-image: url('../static/img/header.jpg');">
+        <ul class="nav">
+          <li>
+            <a href="/">
+              <i class="nc-icon nc-bank" style="color: white;"></i>
+              <p style="color: white;">Dashboard</p>
+            </a>
+          </li>
+          <li class="active ">
+            <a href="/list">
+              <i class="nc-icon nc-diamond"></i>
+              <p>Booking List</p>
+            </a>
+          </li>
+          <li>
+            <a href="/driverlist">
+              <i class="nc-icon nc-circle-10" style="color: white;"></i>
+              <p style="color: white;">Driver List</p>
+            </a>
+          </li>
+          <li>
+            <a href="/temperature">
+              <i class="nc-icon nc-umbrella-13" style="color: white;"></i>
+              <p style="color: white;">Temperature & Humidity</p>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="main-panel">
+      <!-- Navbar -->
+      <nav class="navbar navbar-expand-lg navbar-absolute fixed-top navbar-transparent">
+        <div class="container-fluid">
+          <div class="navbar-wrapper">
+            <div class="navbar-toggle">
+              <button type="button" class="navbar-toggler">
+                <span class="navbar-toggler-bar bar1"></span>
+                <span class="navbar-toggler-bar bar2"></span>
+                <span class="navbar-toggler-bar bar3"></span>
+              </button>
+            </div>
+            <a class="navbar-brand" href="javascript:;">Grab Dashboard</a>
+          </div>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation" aria-controls="navigation-index" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+          </button>
+
+        </div>
+      </nav>
+      <!-- End Navbar -->
+      <div class="content">
+        <div class="row">
+          <div class="col-md-12">
+            <h5 style="text-align: center;">Booking ID {{bookid}}</h5>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-12">
+
+            <div class="card card-chart">
+              <div class="card-header">
+                <h5 class="card-title">Google Map</h5>
+              </div>
+              <div class="card-body"> 
+                <div id="map_div" class="map"></div>
+                <button class="btn btn-primary btn-block" onclick="getLocationData()">Refresh Map</button>
+              </div>
+              <hr >
+              <div class="card-footer">
+                <div class="card-stats">
+                  <div calss="row">
+                    <h6 id="locationName" style="text-align: center;"><i class="fa fa-check"></i> Getting data...</h6>
+                  </div>
+                  <div class="row">
+                    <div class="col">
+                      <p id="locationLat" style="text-align: center;"></p>
+                    </div>
+                    <div class="col">
+                      <p id="locationLong" style="text-align: center;"></p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card card-chart">
+              <div class="card-header">
+                <h5 class="card-title">Speed</h5>
+                <p class="card-category">km/hr</p>
+              </div>
+              <div class="card-body"> 
+                <div class="chart-area">
+                  <div id="status"></div>
+                  <div id="chart_div"></div>
+                </div>
+              </div>
+              <div class="card-footer">
+                <hr />
+                <div class="card-stats">
+                  <i class="fa fa-check"></i> Data information certified
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="col-md-8">
+            <div class="card ">
+              <div class="card-header ">
+                <h5 class="card-title" style="text-align: center;">Highest Speed</h5>
+              </div>
+              
+              <div class="card-body">
+
+                <div class="row">
+                  <div class="col">
+                    <div id="gauge_div" align='center'></div>
+                  </div>
+                  
+                  <div class="col" style="margin: auto;">
+                    <button class="btn btn-outline-danger btn-block" style="padding: 5%;" data-toggle="modal" data-target="#ModalMessage">
+                      <i style="font-size: 150%;" class="nc-icon nc-alert-circle-i"></i> Alert Driver</button>
+                    <button class="btn btn-outline-primary btn-block" style="padding: 5%;" data-toggle="modal" data-target="#myModal" onclick="defaultsetting()">
+                      <i style="font-size: 150%;" class="nc-icon nc-camera-compact"></i> Capture Image</button>
+                  </div>
+                </div>
+
+                <div class="modal fade" tabindex="-1" id="myModal" role="dialog">
+                  <div class="modal-dialog" role="document" style="max-width: none; width:80%">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title" id = "modaltitle">Choose an option</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                        </button>                  
+                      </div>
+                      
+                      <div class="modal-body">
+                  
+                      <style>
+                        .container {
+                          position: relative;
+                          width:50%;
+                          float: left;
+                        }
+                        
+                        .image {
+                          display: block;
+                          width: 100%;
+                          height: auto;
+                        }
+                        
+                        .overlay {
+                          position: absolute;
+                          top: 0;
+                          bottom: 0;
+                          left: 0;
+                          right: 0;
+                          height: 100%;
+                          width: 100%;
+                          opacity: 0;
+                          transition: .5s ease;
+                          background-color: #008CBA;
+                        }
+                        
+                        .container:hover .overlay {
+                          opacity: 1;
+                        }
+                        
+                        .text {
+                          color: white;
+                          font-size: 20px;
+                          position: absolute;
+                          top: 50%;
+                          left: 50%;
+                          -webkit-transform: translate(-50%, -50%);
+                          -ms-transform: translate(-50%, -50%);
+                          transform: translate(-50%, -50%);
+                          text-align: center;
+                        }
+                        </style>
+                      
+                        <div class="container" id="modal-container">
+                         
+                         <img src="../static/img/driver-front-view.jpg" class="image" style="width: 100%;
+                          height: auto;">
+                          <div class="overlay" onclick="getPicture('facial')">
+                            <div class="text">Facial Recognition of Driver</div>
+                          </div>
+                        </div>
+                      
+                        <div class="container" id="modal-container">
+                          <img src="../static/img/dashcam-view.jpg" class="image" style="width: 100%;
+                          height: auto;">
+                          <div class="overlay" onclick="getPicture('object')">
+                            <div class="text">Object Recognition from DashCam </div>
+                            
+                          </div>
+                        </div>
+
+                        <img id="image_div" style="display: block; margin-left:auto; margin-right: auto;"></img>
+                      </div>
+                      <div class="modal-footer">
+                        <p id="imagetaken"></p>
+                        
+                        <p id="ItemObject" style="margin:auto"></p>
+                        <br>
+                        <button type="button" id="horn_button" class="btn btn-danger" style="display: none" onclick="publishHorn()"> <i class="fa fa-bullhorn"></i> Sound the horn!</button>
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div class="modal fade" tabindex="-1" id="ModalMessage" role="dialog">
+                  <div class="modal-dialog" role="document">
+                    <div class="modal-content">
+                      <div class="modal-header">
+                        <h5 class="modal-title">Alert Driver</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                          <span aria-hidden="true">&times;</span>
+                        </button>                  
+                        
+                      </div>
+                      <div class="modal-body">
+                        <div class="form-group">
+                          <label for="exampleFormControlTextarea1">Message to Driver</label>
+                          <textarea class="form-control" placeholder="Message to driver.." id="messageTextArea" rows="3"></textarea>
+                        </div>
+                        
+                      <button type="submit" class="btn btn-primary btn-round" onclick="sendAlert(document.getElementById('messageTextArea').value,'sms');" data-dismiss="modal">
+                        <i style="font-size: 150%;" class="nc-icon nc-mobile"></i> Send via SMS</button>
+                      <button type="submit" class="btn btn-success btn-round" onclick="sendAlert(document.getElementById('messageTextArea').value,'wa');" data-dismiss="modal">
+                        <i style="font-size: 150%;" class="fa fa-whatsapp"></i> Send via WhatsApp</button>
+                      </div>
+
+                      <div class="modal-footer">
+                        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                
+              </div>
+              
+              <div class="card-footer ">
+                <hr> 
+                <p class="card-stats"></p> 
+                <div class="stats">
+                  <div class="card-stats">Date and Time recorded:</div>  
+                    <div id="time" class="card-stats"></div>              
+                </div>
+              </div>
+            </div>
+          </div> 
+       
+          <div class="col-md-4">
+            <div class="card ">
+              <div class="card-header ">
+                <h5 class="card-title" style="text-align: center;">Average Speed</h5>
+              </div>
+              
+              <div class="card-body">
+                <div id="avg_gauge_div" align='center'></div>
+              </div>
+              
+              <div class="card-footer ">
+                <hr> 
+                <p class="card-stats"></p> 
+                <div class="stats">
+                  <div class="card-stats">Date and Time recorded:</div>  
+                    <div id="averageTime" class="card-stats"></div>              
+                </div>
+              </div>
+            </div>
+          </div> 
+        </div>
+
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card ">
+              <div class="card-header ">
+                <h5 class="card-title">Driver Behavior</h5>
+              </div>
+              <div class="card-body"> 
+                <div class="chart-area">
+                  <div id="dashboard">
+                    <div class="input-group-text">
+                    Search by: <select id="selectBox" onchange="changeFunc();">
+                      <option value="2">Speed</option>
+                      <option value="3">Latitude</option>
+                      <option value="4">Longitude</option>
+                    </select>
+                    <div id="search_div"></div>   
+                  </div>
+                    <div id="table_div"></div>
+                  </div>
+                  <div class="col-md-2">
+                    <button class="btn btn-primary btn-block" onclick="getTableData(3)">Refresh Table</button>
+                  </div> 
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <br>
+      <footer class="footer" style="position: absolute; bottom: 0; width: -webkit-fill-available;">
+        <div class="container-fluid">
+          <div class="row">
+            <nav class="footer-nav">
+              <ul>
+                <li><a href="https://www.creative-tim.com" target="_blank">Creative Tim</a></li>
+                <li><a href="https://www.creative-tim.com/blog" target="_blank">Blog</a></li>
+                <li><a href="https://www.creative-tim.com/license" target="_blank">Licenses</a></li>
+              </ul>
+            </nav>
+            <div class="credits ml-auto">
+              <span class="copyright">
+                © 2020, made with <i class="fa fa-heart heart"></i> by Creative Tim
+              </span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="../static/js/core/jquery.min.js"></script>
+  <script src="../static/js/core/popper.min.js"></script>
+  <script src="../static/js/core/bootstrap.min.js"></script>
+  <script src="../static/js/plugins/perfect-scrollbar.jquery.min.js"></script>
+  <!-- Chart JS -->
+  <script src="../static/js/plugins/chartjs.min.js"></script>
+  <!--  Notifications Plugin    -->
+  <script src="../static/js/plugins/bootstrap-notify.js"></script>
+  <!-- Control Center for Now Ui Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="../static/js/paper-dashboard.min.js?v=2.0.1" type="text/javascript"></script>
+</body>
+
+</html>

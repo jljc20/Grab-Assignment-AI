@@ -1,0 +1,535 @@
+<!--
+=========================================================
+* Paper Dashboard 2 - v2.0.1
+=========================================================
+
+* Product Page: https://www.creative-tim.com/product/paper-dashboard-2
+* Copyright 2020 Creative Tim (https://www.creative-tim.com)
+
+Coded by www.creative-tim.com
+
+ =========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+-->
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <link rel="apple-touch-icon" sizes="76x76" href="./static/img/apple-icon.png">
+  <link rel="icon" type="image/ico" href="./static/img/favicon.ico">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
+  <title>
+    Grab Dashboard
+  </title>
+  <meta content='width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, shrink-to-fit=no' name='viewport' />
+  <!--     Fonts and icons     -->
+  <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700,200" rel="stylesheet" />
+  <link href="https://maxcdn.bootstrapcdn.com/font-awesome/latest/css/font-awesome.min.css" rel="stylesheet">
+  <!-- CSS Files -->
+  <link href="./static/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="./static/css/paper-dashboard.css?v=2.0.1" rel="stylesheet" />
+
+  <style>
+    .tableRow {
+      font-family: Montserrat-Regular;
+      font-size: 14px;
+      color: #808080;
+      text-align: center;
+      line-height: 1.4;
+    }
+
+    .headerRow {
+      font-family: Montserrat-Medium;
+      font-size: 12px;
+      color: #fff;
+      line-height: 1.4;
+      text-align: center;
+      text-transform: uppercase;
+      background-color: #71746c;
+    }
+  </style>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.4.1/jquery.min.js"></script>
+  <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+  <script type="text/javascript">
+    google.charts.load('current', {'packages':['corechart','table','controls']});
+    google.charts.setOnLoadCallback(googlecharts_is_ready);
+  
+    var chart, table;
+    var graphdata;
+    var tabledata; 
+
+    function googlecharts_is_ready(){
+      getTempData()
+      getTempTableData(0)
+    }
+    
+   function changeFunc() {
+    var selectBox = document.getElementById("selectBox");
+    var selectedValue = selectBox.options[selectBox.selectedIndex].value;
+    console.log(selectedValue)
+    getTempTableData(selectedValue)
+   }
+
+    function getTempTableData(columnIndex){
+      jQuery.ajax({
+        url: "/api/tempapi",
+        type: 'POST',
+        data: {get_param: 'temperature'},
+        dataType: 'json',
+        success: function(ndata, textStatus, xhr){
+          data = ndata.chart_data
+          datalength  = parseInt(ndata.chart_data_length)
+          tabledata = createDataTableForTable(data,datalength)
+          drawDataTable(tabledata,"table_div",columnIndex)
+        }
+      })   
+    }
+
+    function getTempData(){
+      var tempOption = {
+                          chartArea: {left:10,top:20,right:10,width:"100%",height:"100%"},
+                          interpolateNulls:true,
+                          pointSize: 10,
+                          curveType: 'function',
+                          legend: 'top', 
+                          vAxis: {textPosition: 'in',baseline:0, viewWindow: {min: 0, max: 55}},
+                          hAxis: {textPosition: 'in',format: 'hh:mm:ss'}
+                      }
+
+     var humOption = {
+                          chartArea: {left:10,top:20,right:10,width:"100%",height:"100%"},
+                          interpolateNulls:true,
+                          pointSize: 10,
+                          curveType: 'function',
+                          legend: 'top', 
+                          colors:['red'],
+                          vAxis: {textPosition: 'in',baseline:0, viewWindow: {min: -30, max: 100}},
+                          hAxis: {textPosition: 'in',format: 'hh:mm:ss'}
+                      }
+
+      jQuery.ajax({
+        url: "/api/tempapi",
+        type: 'POST',
+        data: {get_param: 'temperature'},
+        dataType: 'json',
+        success: function(ndata, textStatus, xhr){
+          
+          data = ndata.chart_data
+          datalength  = parseInt(ndata.chart_data_length)
+          updateTemp(data)
+          tempgraphdata = createDataTableForTempChart(data,datalength)
+          humgraphdata = createDataTableForHumChart(data,datalength)
+          drawLineChart(tempgraphdata,"tempChart_div",tempOption)  
+          drawLineChart(humgraphdata,"humChart_div",humOption)
+        }
+      })   
+    }
+
+    function createDataTableForTempChart(newdata,newdatalength){
+        graphdata = new google.visualization.DataTable();       
+        
+        graphdata.addColumn('string', 'Time');
+        graphdata.addColumn('number','Temperature')
+        graphdata.addColumn({type: 'number', role: 'annotation'})
+        currentrow = 0
+  
+        for (i in newdata){
+             
+              temp = newdata[i].temperature;
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));                              
+              jstime = jsdatetime.toLocaleTimeString();
+    
+              graphdata.addRow([jstime,temp,temp]);
+              currentrow++
+        }
+
+        graphdata.removeRows(0,currentrow-10)
+        
+        return graphdata
+    }
+
+    function createDataTableForHumChart(newdata,newdatalength){
+        graphdata = new google.visualization.DataTable();       
+        
+        graphdata.addColumn('string', 'Time');
+        graphdata.addColumn('number','Humidity')
+        graphdata.addColumn({type: 'number', role: 'annotation'})
+        currentrow = 0
+  
+        for (i in newdata){
+             
+              hum = newdata[i].humidity;
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));                              
+              jstime = jsdatetime.toLocaleTimeString();
+    
+              graphdata.addRow([jstime,hum,hum]);
+              currentrow++
+        }
+
+        graphdata.removeRows(0,currentrow-10)
+        
+        return graphdata
+    }
+
+    function createDataTableForTable(newdata,newdatalength){
+        
+        graphdata = new google.visualization.DataTable();       
+        
+
+        graphdata.addColumn('number','Temperature')
+        graphdata.addColumn('number', 'Humidity')
+        graphdata.addColumn('datetime', 'Date and Time');
+        currentrow = 0
+        newdata.reverse();
+        for (i in newdata){
+             
+              temp = newdata[i].temperature;
+              hum = newdata[i].humidity;
+              datetime = newdata[i].datetime_value;
+              jsdatetime = new Date(Date.parse(datetime));                              
+      
+              graphdata.addRow([temp,hum,jsdatetime]);
+              currentrow++
+        }
+
+        graphdata.removeRows(0,currentrow-100)      
+        return graphdata
+    }
+    
+
+    function drawDataTable(tabledata, divname,columnIndex){
+        var dashboard = new google.visualization.Dashboard(document.getElementById(divname))
+        var cssClasses = {headerCell: 'headerRow', tableCell: 'tableRow'};
+        var table = new google.visualization.ChartWrapper({
+            chartType: 'Table',
+            containerId: 'table_div',
+            options: {
+              'cssClassNames':cssClasses,
+              width: '100%',
+              height: '100%',
+              page:'enable',
+              pageSize:'10'
+            }
+        });
+
+        var control = new google.visualization.ControlWrapper({
+        controlType: 'StringFilter',
+        containerId: 'search_div',
+        matchType: 'any',
+        options:{
+          filterColumnIndex: columnIndex,
+          ui:{
+          label: ' '
+          }
+        }
+      
+      });
+      dashboard.bind([control],[table]);
+      dashboard.draw(tabledata);
+
+    }//end drawTable
+
+    function drawLineChart(graphdata,divname,options) {
+        chart = new google.visualization.LineChart(document.getElementById(divname));
+        chart.draw(graphdata, options);
+        
+    } //end drawChart
+
+    function updateTemp(data){
+        
+        totalTemp = 0
+        maxTemp = 0
+        avgTemp = 0
+        totalHum = 0
+        maxHum = 0
+        avgHum = 0
+        minHum = data[1].humidity
+        minTemp = data[1].temperature
+
+        for (i in data){
+            temp = data[i].temperature
+            hum = data[i].humidity
+
+            if (temp >= maxTemp){
+              maxTemp = temp
+            } else if (temp <= minTemp){
+              minTemp = temp
+            }
+
+            if (hum >= maxHum){
+              maxHum = hum
+            }else if (hum <= minHum){
+              minHum = hum
+            }
+            totalHum += data[i].humidity
+            totalTemp += data[i].temperature
+            $("#temp").html(temp + " °C")
+            $("#tempMAX").html(maxTemp)
+            $("#tempMIN").html(minTemp)
+
+            $("#hum").html(hum + " %")
+            $("#humMAX").html(maxHum)
+            $("#humMIN").html(minHum)
+        }
+
+        avgHum = totalHum/data.length
+        avgTemp = totalTemp/data.length
+        $("#tempAVG").html(avgTemp)
+        $("#humAVG").html(avgHum)
+    }
+      
+      $(document).ready(function(){         
+          setInterval(function (){
+            getTempData();
+          },5000);
+      });
+      
+  </script>
+</head>
+
+
+
+<body class="">
+  <div class="wrapper ">
+    <div class="sidebar" data-color="white" data-active-color="danger">
+      <div class="logo">
+
+        <a href="/" class="simple-text logo-normal">
+          <img style="width: 70%;height: 70%;display:block; margin-left:auto; margin-right: auto;" src="../static/img/grab.png">
+        </a>
+      </div>
+      <div class="sidebar-wrapper" style="background-image: url('../static/img/header.jpg');">
+        <ul class="nav">
+          <li>
+            <a href="/">
+              <i class="nc-icon nc-bank" style="color: white;"></i>
+              <p style="color: white;">Dashboard</p>
+            </a>
+          </li>
+          <li>
+            <a href="/list">
+              <i class="nc-icon nc-diamond" style="color: white;"></i>
+              <p style="color: white;">Booking List</p>
+            </a>
+          </li>
+          <li>
+            <a href="/driverlist">
+              <i class="nc-icon nc-circle-10" style="color: white;"></i>
+              <p style="color: white;">Driver List</p>
+            </a>
+          </li>
+          <li class="active">
+            <a href="/temperature">
+              <i class="nc-icon nc-umbrella-13"></i>
+              <p>Temperature & Humidity</p>
+            </a>
+          </li>
+        </ul>
+      </div>
+    </div>
+    <div class="main-panel">
+      <!-- Navbar -->
+      <nav class="navbar navbar-expand-lg navbar-absolute fixed-top navbar-transparent">
+        <div class="container-fluid">
+          <div class="navbar-wrapper">
+            <div class="navbar-toggle">
+              <button type="button" class="navbar-toggler">
+                <span class="navbar-toggler-bar bar1"></span>
+                <span class="navbar-toggler-bar bar2"></span>
+                <span class="navbar-toggler-bar bar3"></span>
+              </button>
+            </div>
+            <a class="navbar-brand" href="javascript:;">Grab Dashboard</a>
+          </div>
+          <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navigation" aria-controls="navigation-index" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+            <span class="navbar-toggler-bar navbar-kebab"></span>
+          </button>
+          
+        </div>
+      </nav>
+      <!-- End Navbar -->
+      <div class="content">
+        <div class="row">
+          <!-- Line Chart of Temperature-->
+          <div class="col-md-8">
+            <div class="card card-chart">
+              <div class="card-header">
+                <h5 class="card-title">Temperature</h5>
+                <p class="card-category">Celsius</p>
+              </div>
+              <div class="card-body"> 
+                <div class="chart-area">
+                  <div id="status"></div>
+                  <div id="tempChart_div"></div>
+                </div>
+              </div>
+              <div class="card-footer">
+                <hr />
+                <div class="card-stats">
+                  <i class="fa fa-check"></i> Data information certified
+                </div>
+              </div>
+            </div>
+          </div>
+          <!--End of Line Chart-->
+
+          <div class="col-md-4">
+            <div class="card ">
+              <div class="card-header ">
+                <h5 class="card-title">Temperature In Singapore</h5>
+                <p class="card-category">Updated every 5 seconds</p>
+              </div>
+              
+              <div class="card-body">
+                <h1 id="temp" style="text-align: center;"></h1>
+              </div>
+
+              <div class="card-footer ">
+                <hr>
+                <p class="card-category">Last 20 records:</p>
+                <div class="stats">
+                  <i class="fa fa-circle" style="color:deepskyblue"> Lowest Recorded: 
+                    <div id="tempMIN" style="display:inline" class="min"></div> °C 
+                  </i>
+                  <br>
+                  <i class="fa fa-circle" style="color:crimson"> Highest Recorded: 
+                    <div id="tempMAX" style="display:inline" class="max"></div> °C
+                  </i>
+                <br>
+                  <i class="fa fa-circle" style="color:rgb(20, 220, 53)"> Average Temperature: 
+                    <div id="tempAVG" style="display:inline" class="avg"></div> °C
+                  </i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="row">
+          <!-- Line Chart of humidity-->
+          <div class="col-md-8">
+            <div class="card card-chart">
+              <div class="card-header">
+                <h5 class="card-title">Humidity</h5>
+                <p class="card-category">% Water Vapor</p>
+              </div>
+              <div class="card-body"> 
+                <div class="chart-area">
+                  <div id="status"></div>
+                  <div id="humChart_div"></div>
+                </div>
+              </div>
+              <div class="card-footer">
+                <hr />
+                <div class="card-stats">
+                  <i class="fa fa-check"></i> Data information certified
+                </div>
+              </div>
+            </div>
+          </div>
+          <!--End of Line Chart-->
+
+          <div class="col-md-4">
+            <div class="card ">
+              <div class="card-header ">
+                <h5 class="card-title">Humidity In Singapore</h5>
+                <p class="card-category">Updated every 5 seconds</p>
+              </div>
+              
+              <div class="card-body">
+                <h1 id="hum" style="text-align: center;"></h1>
+              </div>
+
+              <div class="card-footer ">
+                <hr>
+                <p class="card-category">Last 20 records:</p>
+                <div class="stats">
+                  <i class="fa fa-circle" style="color:deepskyblue"> Lowest Recorded: 
+                    <div id="humMIN" style="display:inline" class="min"></div> % 
+                  </i>
+                  <br>
+                  <i class="fa fa-circle" style="color:crimson"> Highest Recorded: 
+                    <div id="humMAX" style="display:inline" class="max"></div> %
+                  </i>
+                <br>
+                  <i class="fa fa-circle" style="color:rgb(20, 220, 53)"> Average Humidity: 
+                    <div id="humAVG" style="display:inline" class="avg"></div> %
+                  </i>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-12">
+            <div class="card ">
+              
+              <div class="card-header ">
+                <h5 class="card-title">Records of Temperature and Humidity</h5>
+                
+              </div>
+              <div class="card-body"> .
+                <div id="dashboard" class="chart-area">
+                  <div class="input-group-text">
+                   
+                   Search by: <select id="selectBox" onchange="changeFunc();">
+                      <option value="0">Temperature</option>
+                      <option value="1">Humidity</option>
+                    </select>
+                    
+                  <div id ="search_div"></div>
+                </div>
+                  <div id="table_div"></div>
+                </div>
+                <div class="col-md-2">
+                  <button class="btn btn-primary btn-block" onclick="getTempTableData(0)">Refresh Table</button>
+                </div> 
+              </div>
+              <div class="card-footer ">
+                <hr>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer class="footer" style="position: absolute; bottom: 0; width: -webkit-fill-available;">
+        <div class="container-fluid">
+          <div class="row">
+            <nav class="footer-nav">
+              <ul>
+                <li><a href="https://www.creative-tim.com" target="_blank">Creative Tim</a></li>
+                <li><a href="https://www.creative-tim.com/blog" target="_blank">Blog</a></li>
+                <li><a href="https://www.creative-tim.com/license" target="_blank">Licenses</a></li>
+              </ul>
+            </nav>
+            <div class="credits ml-auto">
+              <span class="copyright">
+                © 2020, made with <i class="fa fa-heart heart"></i> by Creative Tim
+              </span>
+            </div>
+          </div>
+        </div>
+      </footer>
+    </div>
+  </div>
+  <!--   Core JS Files   -->
+  <script src="./static/js/core/jquery.min.js"></script>
+  <script src="./static/js/core/popper.min.js"></script>
+  <script src="./static/js/core/bootstrap.min.js"></script>
+  <script src="./static/js/plugins/perfect-scrollbar.jquery.min.js"></script>
+  <!-- Chart JS -->
+  <script src="./static/js/plugins/chartjs.min.js"></script>
+  <!--  Notifications Plugin    -->
+  <script src="./static/js/plugins/bootstrap-notify.js"></script>
+  <!-- Control Center for Now Ui Dashboard: parallax effects, scripts for the example pages etc -->
+  <script src="./static/js/paper-dashboard.min.js?v=2.0.1" type="text/javascript"></script>
+</body>
+
+</html>
